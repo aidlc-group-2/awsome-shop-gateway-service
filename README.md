@@ -1,10 +1,14 @@
 # Awsome Shop Gateway Service
 
-基于领域驱动设计（DDD）+ 六边形架构的商品服务。
+AWSomeShop 统一 API 网关（Unit6），基于 **Spring Cloud Gateway（reactive/WebFlux）**。
+统一入口、JWT 认证校验、角色鉴权、路由转发、限流与安全响应头（FR-G1~G5）。
 
-- **Java 21** / **Spring Boot 3.4.1** / **MyBatis-Plus 3.5.7**
-- 多模块 Maven 项目，26 个子模块
-- Flyway 数据库迁移 / Redis 缓存 / SQS 消息队列 / JWT 安全
+- **Java 21** / **Spring Boot 3.4.1** / **Spring Cloud Gateway**
+- 无状态网关：不依赖数据库；通过 WebClient 调用认证服务校验令牌
+- 详见 `docs/IMPLEMENTATION_NOTES.md`
+
+> 注：源码树中保留的 `mysql-impl/redis-impl/sqs-impl` 等模块来自微服务脚手架模板，
+> **未被 `bootstrap` 打包**（仅打包 `gateway-impl/common/domain-api/application-api`），属待清理的历史残留。
 
 ---
 

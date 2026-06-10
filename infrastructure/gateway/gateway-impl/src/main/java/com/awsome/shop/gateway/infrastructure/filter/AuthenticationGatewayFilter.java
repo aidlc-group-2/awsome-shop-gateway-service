@@ -67,15 +67,28 @@ public class AuthenticationGatewayFilter implements GlobalFilter, Ordered {
                                 GatewayErrorCode.AUTH_TOKEN_INVALID, result.getMessage()));
                     }
 
-                    log.debug("[{}] Authenticated operatorId: {}", requestId, result.getOperatorId());
+                    String userId = result.getUserId() == null ? null : String.valueOf(result.getUserId());
+                    String role = result.getRole();
 
-                    // Store operatorId for downstream filters
-                    exchange.getAttributes().put(RouteConstants.ATTR_OPERATOR_ID, result.getOperatorId());
+                    log.debug("[{}] Authenticated userId: {}, role: {}", requestId, userId, role);
 
-                    // Add operatorId header to request
-                    ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                            .header(RouteConstants.HEADER_OPERATOR_ID, result.getOperatorId())
-                            .build();
+                    // Store identity for downstream filters (RoleAuthorizationFilter, body injection)
+                    if (userId != null) {
+                        exchange.getAttributes().put(RouteConstants.ATTR_USER_ID, userId);
+                    }
+                    if (role != null) {
+                        exchange.getAttributes().put(RouteConstants.ATTR_USER_ROLE, role);
+                    }
+
+                    // Inject identity headers to downstream request (design FR-G2)
+                    ServerHttpRequest.Builder builder = exchange.getRequest().mutate();
+                    if (userId != null) {
+                        builder.header(RouteConstants.HEADER_USER_ID, userId);
+                    }
+                    if (role != null) {
+                        builder.header(RouteConstants.HEADER_USER_ROLE, role);
+                    }
+                    ServerHttpRequest mutatedRequest = builder.build();
 
                     return chain.filter(exchange.mutate().request(mutatedRequest).build());
                 });

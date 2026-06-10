@@ -48,7 +48,7 @@ public class AuthServiceClient implements AuthenticationService {
                 .timeout(timeout)
                 .map(response -> {
                     if (response.isSuccess()) {
-                        return AuthenticationResult.success(response.getOperatorId());
+                        return AuthenticationResult.success(response.getUserId(), response.getRole());
                     }
                     return AuthenticationResult.failure(response.getMessage());
                 })

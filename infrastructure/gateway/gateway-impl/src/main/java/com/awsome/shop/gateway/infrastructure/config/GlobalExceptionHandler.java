@@ -107,6 +107,9 @@ public class GlobalExceptionHandler implements ErrorWebExceptionHandler {
         if (errorCode.startsWith("AUTHZ_")) {
             return HttpStatus.FORBIDDEN;
         }
+        if (errorCode.startsWith("RATE_")) {
+            return HttpStatus.TOO_MANY_REQUESTS;
+        }
         if (errorCode.startsWith("PARAM_")) {
             return HttpStatus.BAD_REQUEST;
         }

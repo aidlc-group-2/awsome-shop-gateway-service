@@ -28,19 +28,21 @@ import reactor.core.publisher.Mono;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Global filter to inject operatorId into POST JSON request body.
+ * Global filter to inject the authenticated {@code userId} into the POST JSON request body.
  *
  * <p>Order: +200 - executes after AuthenticationGatewayFilter.</p>
  *
  * <p>Only applies to POST requests with JSON content type that have
- * an authenticated operatorId available.</p>
+ * an authenticated userId available. Complements the {@code X-User-Id}
+ * request header for downstream services that read identity from the body
+ * (see auth-service {@code GatewayInjectableRequest}).</p>
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class OperatorIdInjectionFilter implements GlobalFilter, Ordered {
 
-    private static final String OPERATOR_ID_FIELD = "operatorId";
+    private static final String USER_ID_FIELD = "userId";
 
     private final ObjectMapper objectMapper;
 
@@ -51,8 +53,8 @@ public class OperatorIdInjectionFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        String operatorId = exchange.getAttribute(RouteConstants.ATTR_OPERATOR_ID);
-        if (operatorId == null || operatorId.isEmpty()) {
+        String userId = exchange.getAttribute(RouteConstants.ATTR_USER_ID);
+        if (userId == null || userId.isEmpty()) {
             return chain.filter(exchange);
         }
 
@@ -70,16 +72,16 @@ public class OperatorIdInjectionFilter implements GlobalFilter, Ordered {
                     String body = new String(bytes, StandardCharsets.UTF_8);
 
                     if (body.isEmpty() || body.equals("{}")) {
-                        body = "{\"" + OPERATOR_ID_FIELD + "\":\"" + operatorId + "\"}";
+                        body = "{\"" + USER_ID_FIELD + "\":\"" + userId + "\"}";
                     } else {
                         try {
                             JsonNode jsonNode = objectMapper.readTree(body);
                             if (jsonNode.isObject()) {
-                                ((ObjectNode) jsonNode).put(OPERATOR_ID_FIELD, operatorId);
+                                ((ObjectNode) jsonNode).put(USER_ID_FIELD, userId);
                                 body = objectMapper.writeValueAsString(jsonNode);
                             }
                         } catch (JsonProcessingException e) {
-                            log.warn("Failed to inject operatorId into request body: {}", e.getMessage());
+                            log.warn("Failed to inject userId into request body: {}", e.getMessage());
                             return chain.filter(exchange);
                         }
                     }

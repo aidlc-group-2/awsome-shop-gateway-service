@@ -11,8 +11,12 @@ public final class RouteConstants {
     // ==================== Header Names ====================
 
     public static final String HEADER_REQUEST_ID = "X-Request-Id";
-    public static final String HEADER_OPERATOR_ID = "X-Operator-Id";
     public static final String HEADER_AUTHORIZATION = "Authorization";
+
+    /** Authenticated user id injected to downstream (design FR-G2). */
+    public static final String HEADER_USER_ID = "X-User-Id";
+    /** Authenticated user role injected to downstream (design FR-G2/FR-G3). */
+    public static final String HEADER_USER_ROLE = "X-User-Role";
 
     // ==================== Route Metadata Keys ====================
 
@@ -26,6 +30,12 @@ public final class RouteConstants {
     // ==================== Gateway Attributes ====================
 
     public static final String ATTR_REQUEST_ID = "requestId";
-    public static final String ATTR_OPERATOR_ID = "operatorId";
+    public static final String ATTR_USER_ID = "userId";
+    public static final String ATTR_USER_ROLE = "userRole";
     public static final String ATTR_REQUEST_START_TIME = "requestStartTime";
+
+    // ==================== Roles ====================
+
+    public static final String ROLE_ADMIN = "ADMIN";
+    public static final String ROLE_EMPLOYEE = "EMPLOYEE";
 }
