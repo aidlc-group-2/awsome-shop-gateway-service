@@ -1,0 +1,27 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      # ① 编译 + 测试（多模块工程，根目录构建所有模块）
+      - name: Maven verify
+        run: mvn -B -ntp clean verify
+
+      # ② docker 打包验证（与 staging 的 docker compose build 等价）
+      - name: Docker build
+        run: docker build -t ${{ github.event.repository.name }}:ci .
