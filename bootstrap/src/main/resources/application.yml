@@ -13,21 +13,127 @@ spring:
     deserialization:
       fail-on-unknown-properties: false
 
-  # Spring Cloud Gateway defaults
+  # Spring Cloud Gateway defaults + 路由（所有环境通用，后端地址由环境变量覆盖）
   cloud:
     gateway:
       server:
         webflux:
           default-filters:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
+          routes:
+            # ==================== API Docs Routes ====================
+            - id: auth-docs
+              uri: ${gateway.services.auth}
+              predicates:
+                - Path=/v3/api-docs/auth
+              filters:
+                - RewritePath=/v3/api-docs/auth, /v3/api-docs
+                - SwaggerServersRewrite
+              metadata:
+                auth-required: false
+            - id: product-docs
+              uri: ${gateway.services.product}
+              predicates:
+                - Path=/v3/api-docs/product
+              filters:
+                - RewritePath=/v3/api-docs/product, /v3/api-docs
+                - SwaggerServersRewrite
+              metadata:
+                auth-required: false
+            - id: point-docs
+              uri: ${gateway.services.point}
+              predicates:
+                - Path=/v3/api-docs/point
+              filters:
+                - RewritePath=/v3/api-docs/point, /v3/api-docs
+                - SwaggerServersRewrite
+              metadata:
+                auth-required: false
+            - id: order-docs
+              uri: ${gateway.services.order}
+              predicates:
+                - Path=/v3/api-docs/order
+              filters:
+                - RewritePath=/v3/api-docs/order, /v3/api-docs
+                - SwaggerServersRewrite
+              metadata:
+                auth-required: false
+            # ==================== Public Routes (no auth) ====================
+            - id: auth-public
+              uri: ${gateway.services.auth}
+              predicates:
+                - Path=/api/v1/public/auth/**
+              metadata:
+                auth-required: false
+            - id: product-public
+              uri: ${gateway.services.product}
+              predicates:
+                - Path=/api/v1/public/product/**
+              metadata:
+                auth-required: false
+            - id: point-public
+              uri: ${gateway.services.point}
+              predicates:
+                - Path=/api/v1/public/point/**
+              metadata:
+                auth-required: false
+            - id: order-public
+              uri: ${gateway.services.order}
+              predicates:
+                - Path=/api/v1/public/order/**
+              metadata:
+                auth-required: false
+            # ==================== Protected Routes (auth required) ====================
+            - id: auth-protected
+              uri: ${gateway.services.auth}
+              predicates:
+                - Path=/api/v1/auth/**
+              metadata:
+                auth-required: true
+            - id: product-protected
+              uri: ${gateway.services.product}
+              predicates:
+                - Path=/api/v1/product/**
+              metadata:
+                auth-required: true
+            - id: point-protected
+              uri: ${gateway.services.point}
+              predicates:
+                - Path=/api/v1/point/**
+              metadata:
+                auth-required: true
+            - id: order-protected
+              uri: ${gateway.services.order}
+              predicates:
+                - Path=/api/v1/order/**
+              metadata:
+                auth-required: true
 
 server:
   port: 8080
 
-# Gateway configuration
+# Gateway configuration（后端地址/鉴权/限流：所有环境通用，敏感项由环境变量覆盖）
 gateway:
+  services:
+    auth: ${GATEWAY_SERVICE_AUTH:http://localhost:8001}
+    product: ${GATEWAY_SERVICE_PRODUCT:http://localhost:8002}
+    point: ${GATEWAY_SERVICE_POINT:http://localhost:8003}
+    order: ${GATEWAY_SERVICE_ORDER:http://localhost:8004}
   auth:
     timeout: 5s
+    validate-url: ${GATEWAY_AUTH_VALIDATE_URL:${gateway.services.auth}/api/v1/internal/auth/validate}
+  security:
+    # 需要 ADMIN 角色的 Ant 风格路径，认证后的 EMPLOYEE 访问返回 403
+    admin-paths:
+      - /api/v1/auth/user/detail
+      - /api/v1/auth/user/role
+      - /api/v1/admin/**
+      - /api/v1/**/admin/**
+    rate-limit:
+      enabled: true
+      capacity: 100
+      refill-tokens: 100
+      refill-period-seconds: 1
   webclient:
     connect-timeout: 5s
     read-timeout: 10s

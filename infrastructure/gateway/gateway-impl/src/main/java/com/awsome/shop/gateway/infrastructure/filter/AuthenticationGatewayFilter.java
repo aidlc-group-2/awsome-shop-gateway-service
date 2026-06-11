@@ -39,24 +39,28 @@ public class AuthenticationGatewayFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
 
+        // 安全：无条件剥离客户端自带的身份头，杜绝外部伪造 X-User-Id/X-User-Role 透传到下游。
+        // 对所有路径（含公共/免认证）都剥离，下游收到的该头只可能由本网关注入。
+        ServerWebExchange sanitized = stripInboundIdentityHeaders(exchange);
+
         // Skip auth for public and docs paths
         if (isPublicPath(path)) {
-            return chain.filter(exchange);
+            return chain.filter(sanitized);
         }
 
         // Check route metadata for auth-required flag
-        if (!isAuthRequired(exchange)) {
-            return chain.filter(exchange);
+        if (!isAuthRequired(sanitized)) {
+            return chain.filter(sanitized);
         }
 
         // Extract token
-        String authHeader = exchange.getRequest().getHeaders().getFirst(RouteConstants.HEADER_AUTHORIZATION);
+        String authHeader = sanitized.getRequest().getHeaders().getFirst(RouteConstants.HEADER_AUTHORIZATION);
         TokenInfo tokenInfo = TokenInfo.fromAuthorizationHeader(authHeader);
         if (tokenInfo == null) {
             return Mono.error(new AuthenticationException(GatewayErrorCode.AUTH_TOKEN_MISSING));
         }
 
-        String requestId = exchange.getAttribute(RouteConstants.ATTR_REQUEST_ID);
+        String requestId = sanitized.getAttribute(RouteConstants.ATTR_REQUEST_ID);
 
         // Validate token via auth service
         return authenticationService.validate(tokenInfo.getToken())
@@ -74,24 +78,49 @@ public class AuthenticationGatewayFilter implements GlobalFilter, Ordered {
 
                     // Store identity for downstream filters (RoleAuthorizationFilter, body injection)
                     if (userId != null) {
-                        exchange.getAttributes().put(RouteConstants.ATTR_USER_ID, userId);
+                        sanitized.getAttributes().put(RouteConstants.ATTR_USER_ID, userId);
                     }
                     if (role != null) {
-                        exchange.getAttributes().put(RouteConstants.ATTR_USER_ROLE, role);
+                        sanitized.getAttributes().put(RouteConstants.ATTR_USER_ROLE, role);
                     }
 
-                    // Inject identity headers to downstream request (design FR-G2)
-                    ServerHttpRequest.Builder builder = exchange.getRequest().mutate();
-                    if (userId != null) {
-                        builder.header(RouteConstants.HEADER_USER_ID, userId);
-                    }
-                    if (role != null) {
-                        builder.header(RouteConstants.HEADER_USER_ROLE, role);
-                    }
-                    ServerHttpRequest mutatedRequest = builder.build();
+                    // Inject identity headers to downstream request (design FR-G2)。
+                    // 用 set 语义覆盖（剥离后此处为新增），避免与外部值并存。
+                    ServerHttpRequest mutatedRequest = sanitized.getRequest().mutate()
+                            .headers(headers -> {
+                                headers.remove(RouteConstants.HEADER_USER_ID);
+                                headers.remove(RouteConstants.HEADER_USER_ROLE);
+                                if (userId != null) {
+                                    headers.set(RouteConstants.HEADER_USER_ID, userId);
+                                }
+                                if (role != null) {
+                                    headers.set(RouteConstants.HEADER_USER_ROLE, role);
+                                }
+                            })
+                            .build();
 
-                    return chain.filter(exchange.mutate().request(mutatedRequest).build());
+                    return chain.filter(sanitized.mutate().request(mutatedRequest).build());
                 });
+    }
+
+    /**
+     * 剥离请求中客户端自带的身份头，返回净化后的 exchange。
+     */
+    private ServerWebExchange stripInboundIdentityHeaders(ServerWebExchange exchange) {
+        boolean hasForged = exchange.getRequest().getHeaders().containsKey(RouteConstants.HEADER_USER_ID)
+                || exchange.getRequest().getHeaders().containsKey(RouteConstants.HEADER_USER_ROLE);
+        if (!hasForged) {
+            return exchange;
+        }
+        log.warn("Stripping client-supplied identity headers from inbound request path={}",
+                exchange.getRequest().getURI().getPath());
+        ServerHttpRequest stripped = exchange.getRequest().mutate()
+                .headers(headers -> {
+                    headers.remove(RouteConstants.HEADER_USER_ID);
+                    headers.remove(RouteConstants.HEADER_USER_ROLE);
+                })
+                .build();
+        return exchange.mutate().request(stripped).build();
     }
 
     @Override
