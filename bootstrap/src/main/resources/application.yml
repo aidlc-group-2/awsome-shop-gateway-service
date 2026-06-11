@@ -125,6 +125,7 @@ gateway:
   security:
     # 需要 ADMIN 角色的 Ant 风格路径，认证后的 EMPLOYEE 访问返回 403
     admin-paths:
+      - /api/v1/auth/user/list
       - /api/v1/auth/user/detail
       - /api/v1/auth/user/role
       - /api/v1/admin/**
